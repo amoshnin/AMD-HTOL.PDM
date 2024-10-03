@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import plotly.graph_objects as go
 
 @st.cache_data
@@ -15,86 +13,42 @@ st.title('Socket Data Visualization')
 # Sidebar for user input
 htr_duty_threshold = st.slider('HTR_DUTY Threshold (%)', 0, 100, 90)
 
-date_format_options = {
-    'Year': mdates.YearLocator(),
-    'Month': mdates.MonthLocator(),
-    'Day': mdates.DayLocator(),
-    'Hour': mdates.HourLocator(),
-}
-selected_date_format = st.selectbox('Select Date Format', list(date_format_options.keys()))
-
-
 # Plotting
 for socket_num in range(8):
-
     HTR_DUTY_column = f'HTR_DUTY.{socket_num}'
     COOL_DUTY_column = f'COOLDUTY.{socket_num}'
-
     ES0_TEMP_column = f'ES0_TEMP.{socket_num}'
     SNK_TEMP_column = f'SNK_TEMP.{socket_num}'
 
-    filtered_df = df[df[HTR_DUTY_column] >= htr_duty_threshold]
-    filtered_df.loc[:, COOL_DUTY_column] = 100 - filtered_df[COOL_DUTY_column]
+    @st.cache_data  # Cache filtered DataFrame
+    def filter_data(df, threshold, socket_num):
+        filtered_df = df[df[f'HTR_DUTY.{socket_num}'] >= threshold]
+        filtered_df.loc[:, f'COOLDUTY.{socket_num}'] = 100 - filtered_df[f'COOLDUTY.{socket_num}']
+        return filtered_df
 
-    st.subheader(f"Socket {socket_num}")
-
-    min_date = filtered_df.index.min() if not filtered_df.empty else pd.Timestamp.today()
-    max_date = filtered_df.index.max() if not filtered_df.empty else pd.Timestamp.today()
-
-
-    start_date, end_date = st.date_input(
-        f"Select Date Range for Socket {socket_num}",
-        [min_date, max_date],
-    )
-
-    filtered_df = filtered_df[start_date:end_date]
+    filtered_df = filter_data(df, htr_duty_threshold, socket_num)
 
     # Temperature Graph
-    fig_temp, ax_temp = plt.subplots(figsize=(10, 5))
+    fig_temp = go.Figure()
     for col in [ES0_TEMP_column, SNK_TEMP_column]:
-        filtered_df.plot(y=col, ax=ax_temp, style=".")
-    ax_temp.set_ylabel("Temperature (°C)")
-    ax_temp.set_title(f"Socket {socket_num} Temperature")
+        fig_temp.add_trace(go.Scatter(x=filtered_df.index, y=filtered_df[col], mode='markers', name=col))
 
-    ax_temp.xaxis.set_major_locator(date_format_options[selected_date_format])
-    fig_temp.autofmt_xdate()
+    fig_temp.update_layout(
+        title=f"Socket {socket_num} Temperature",
+        xaxis_title="DateTime",
+        yaxis_title="Temperature (°C)",
+    )
 
-    # Enable zooming for the temperature graph
-    st.pyplot(fig_temp, use_container_width=True)
-
-    # fig_temp = go.Figure()
-    # for col in [ES0_TEMP_column, SNK_TEMP_column]:
-    #     fig_temp.add_trace(go.Scatter(x=filtered_df.index, y=filtered_df[col], mode='markers', name=col))
-
-    # fig_temp.update_layout(
-    #     title=f"Socket {socket_num} Temperature",
-    #     xaxis_title="DateTime",
-    #     yaxis_title="Temperature (°C)",
-    # )
-
-    # st.plotly_chart(fig_temp, use_container_width=True)
+    st.plotly_chart(fig_temp, use_container_width=True)
 
     # Percentage Graph
-    fig_pct, ax_pct = plt.subplots(figsize=(10, 5))
+    fig_pct = go.Figure()
     for col in [COOL_DUTY_column, HTR_DUTY_column]:
-        filtered_df.plot(y=col, ax=ax_pct, style=".")
-    ax_pct.set_ylabel("Percentage (%)")
-    ax_pct.set_title(f"Socket {socket_num} Duty Cycle")
+        fig_pct.add_trace(go.Scatter(x=filtered_df.index, y=filtered_df[col], mode='markers', name=col))
 
-    ax_pct.xaxis.set_major_locator(date_format_options[selected_date_format])
-    fig_pct.autofmt_xdate()
-
-    # Enable zooming for the percentage graph
-    st.pyplot(fig_pct, use_container_width=True)
-
-    # fig_pc = go.Figure()
-    # for col in [COOL_DUTY_column, HTR_DUTY_column]:
-    #     fig_pc.add_trace(go.Scatter(x=filtered_df.index, y=filtered_df[col], mode='markers', name=col))
-
-    # fig_pc.update_layout(
-    #     title=f"Socket {socket_num} Temperature",
-    #     xaxis_title="DateTime",
-    #     yaxis_title="Temperature (°C)",
-    # )
-
-    # st.plotly_chart(fig_pc)
+    fig_pct.update_layout(
+        title=f"Socket {socket_num} Duty Cycle",
+        xaxis_title="DateTime",
+        yaxis_title="Percentage (%)",
+    )
+    st.plotly_chart(fig_pct, use_container_width=True)
